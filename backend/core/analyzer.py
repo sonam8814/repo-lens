@@ -165,12 +165,70 @@ def generate_security_scan(
     return response.content
 
 
+def generate_chat_answer(question: str, context_chunks: list[dict]) -> str:
+    llm = _get_llm()
+    context_str = _truncate(_format_code_samples(context_chunks), 8000)
+
+    response = llm.invoke([
+        SystemMessage(content=(
+            "You are a helpful assistant that answers questions about a codebase. "
+            "Use the provided code context to give accurate, specific answers. "
+            "Reference file paths when relevant. If the context doesn't contain "
+            "enough information to answer fully, say so and provide your best "
+            "assessment based on what's available."
+        )),
+        HumanMessage(content=(
+            f"## Relevant Code Context\n{context_str}\n\n"
+            f"## Question\n{question}"
+        )),
+    ])
+    return response.content
+
+
+ONBOARDING_PROMPT = (
+    "You are a technical writer creating a developer onboarding guide. "
+    "Given a repository's file tree, dependencies, and code samples, "
+    "generate a comprehensive Markdown onboarding document covering:\n"
+    "1. **Project Overview** — what the project does and who it's for\n"
+    "2. **Prerequisites** — required tools, runtimes, and accounts\n"
+    "3. **Setup Instructions** — step-by-step environment setup\n"
+    "4. **Project Structure** — key directories and their purpose\n"
+    "5. **Environment Variables** — list any .env or config values needed\n"
+    "6. **Running the Application** — how to start, build, and serve\n"
+    "7. **Running Tests** — test commands and frameworks used\n"
+    "8. **Key Architectural Decisions** — patterns a new dev should know\n"
+    "9. **Common Tasks** — adding a feature, fixing a bug, deploying\n\n"
+    "Be specific and reference actual file paths from the repository. "
+    "Format the output as a clean, well-structured Markdown document."
+)
+
+
+def generate_onboarding(
+    file_tree: dict,
+    dependencies: list[dict],
+    code_chunks: list[dict],
+) -> str:
+    llm = _get_llm()
+    tree_str = _truncate(_format_file_tree(file_tree), 4000)
+    deps_str = _truncate(_format_dependencies(dependencies), 3000)
+    code_str = _truncate(_format_code_samples(code_chunks), 6000)
+
+    response = llm.invoke([
+        SystemMessage(content=ONBOARDING_PROMPT),
+        HumanMessage(content=(
+            f"## File Tree\n{tree_str}\n\n"
+            f"## Dependencies\n{deps_str}\n\n"
+            f"## Code Samples\n{code_str}"
+        )),
+    ])
+    return response.content
+
+
 def run_full_analysis(
     file_tree: dict,
     dependencies: list[dict],
     code_chunks: list[dict],
 ) -> dict:
-    """Run all four analysis passes and return results as a dict."""
     return {
         "summary": generate_summary(file_tree, dependencies, code_chunks),
         "architecture": generate_architecture(file_tree, code_chunks),
