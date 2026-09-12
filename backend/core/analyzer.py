@@ -6,7 +6,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 load_dotenv()
 
-GROQ_MODEL = "llama3-70b-8192"
+GROQ_MODEL = "qwen/qwen3.8-27b"
 
 
 def _get_llm() -> ChatGroq:
@@ -17,7 +17,7 @@ def _get_llm() -> ChatGroq:
         model=GROQ_MODEL,
         api_key=api_key,
         temperature=0.2,
-        max_tokens=4096,
+        max_tokens=950,
     )
 
 
