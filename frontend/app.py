@@ -211,11 +211,14 @@ else:
                             "sources": result.get("sources", []),
                         })
                     except requests.exceptions.HTTPError as e:
-                        try:
-                            detail = e.response.json().get("detail", str(e))
-                        except Exception:
-                            detail = e.response.text or str(e)
-                        st.error(f"Chat error: {detail}")
+                        if e.response.status_code == 404:
+                            st.error("Session expired (server was restarted). Please click **Analyze Repository** again in the sidebar.")
+                        else:
+                            try:
+                                detail = e.response.json().get("detail", str(e))
+                            except Exception:
+                                detail = e.response.text or str(e)
+                            st.error(f"Chat error: {detail}")
                     except Exception as e:
                         st.error(f"Chat error: {e}")
 
@@ -240,10 +243,13 @@ else:
                         st.session_state.onboarding_guide = result["onboarding_guide"]
                         st.rerun()
                     except requests.exceptions.HTTPError as e:
-                        try:
-                            detail = e.response.json().get("detail", str(e))
-                        except Exception:
-                            detail = e.response.text or str(e)
-                        st.error(f"Onboarding error: {detail}")
+                        if e.response.status_code == 404:
+                            st.error("Session expired (server was restarted). Please click **Analyze Repository** again in the sidebar.")
+                        else:
+                            try:
+                                detail = e.response.json().get("detail", str(e))
+                            except Exception:
+                                detail = e.response.text or str(e)
+                            st.error(f"Onboarding error: {detail}")
                     except Exception as e:
                         st.error(f"Onboarding error: {e}")

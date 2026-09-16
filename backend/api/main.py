@@ -172,3 +172,22 @@ async def onboarding(request: OnboardingRequest):
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+if __name__ == "__main__":
+    import argparse
+    import uvicorn
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reload", action="store_true", help="Enable auto-reload (disable if venv installs cause restarts)")
+    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--port", type=int, default=8000)
+    args = parser.parse_args()
+
+    uvicorn.run(
+        "backend.api.main:app",
+        host=args.host,
+        port=args.port,
+        reload=args.reload,
+        reload_dirs=["backend"] if args.reload else None,
+    )
