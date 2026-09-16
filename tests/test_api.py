@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 
 from fastapi.testclient import TestClient
 
-from backend.api.main import app, sessions
+from backend.api.main import app, sessions, analysis_cache
 
 
 client = TestClient(app)
@@ -50,6 +50,7 @@ MOCK_QUERY_RESULTS = [
 class TestAnalyzeEndpoint(unittest.TestCase):
     def setUp(self):
         sessions.clear()
+        analysis_cache.clear()
 
     @patch("backend.api.main.cleanup_repository")
     @patch("backend.api.main.run_full_analysis", return_value=MOCK_ANALYSIS)
@@ -80,7 +81,7 @@ class TestAnalyzeEndpoint(unittest.TestCase):
             "/api/analyze",
             json={"repo_url": "https://github.com/user/repo"},
         )
-        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.status_code, 422)
         self.assertIn("clone failed", response.json()["detail"])
 
     def test_analyze_invalid_url(self):

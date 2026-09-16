@@ -103,11 +103,23 @@ with st.sidebar:
                 st.session_state.analysis = result
                 st.session_state.chat_history = []
                 st.session_state.onboarding_guide = None
-                st.success("Analysis complete!")
+                if result.get("cached"):
+                    st.success("Analysis loaded from cache!")
+                else:
+                    st.success("Analysis complete!")
             except requests.exceptions.ConnectionError:
                 st.error("Cannot connect to the backend. Make sure the API server is running on port 8000.")
             except requests.exceptions.HTTPError as e:
-                st.error(f"Analysis failed: {e.response.text}")
+                try:
+                    detail = e.response.json().get("detail", e.response.text)
+                except Exception:
+                    detail = e.response.text
+                if e.response.status_code == 429:
+                    st.warning(f"Rate limited: {detail}")
+                elif e.response.status_code == 422:
+                    st.error(f"Invalid repository: {detail}")
+                else:
+                    st.error(f"Analysis failed: {detail}")
             except Exception as e:
                 st.error(f"Error: {e}")
     elif analyze_clicked and not repo_url:
@@ -213,6 +225,8 @@ else:
                     except requests.exceptions.HTTPError as e:
                         if e.response.status_code == 404:
                             st.error("Session expired (server was restarted). Please click **Analyze Repository** again in the sidebar.")
+                        elif e.response.status_code == 429:
+                            st.warning("Rate limited by the LLM provider. Please wait a moment and try again.")
                         else:
                             try:
                                 detail = e.response.json().get("detail", str(e))
@@ -245,6 +259,8 @@ else:
                     except requests.exceptions.HTTPError as e:
                         if e.response.status_code == 404:
                             st.error("Session expired (server was restarted). Please click **Analyze Repository** again in the sidebar.")
+                        elif e.response.status_code == 429:
+                            st.warning("Rate limited by the LLM provider. Please wait a moment and try again.")
                         else:
                             try:
                                 detail = e.response.json().get("detail", str(e))

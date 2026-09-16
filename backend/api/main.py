@@ -1,3 +1,4 @@
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -5,6 +6,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
+from groq import RateLimitError
 
 from backend.core.git_loader import (
     clone_repository,
@@ -23,7 +25,10 @@ from backend.core.analyzer import (
     generate_onboarding,
 )
 
+logger = logging.getLogger(__name__)
+
 sessions: dict[str, dict] = {}
+analysis_cache: dict[str, dict] = {}
 
 
 @asynccontextmanager
@@ -68,6 +73,7 @@ class AnalyzeResponse(BaseModel):
     dependency_report: str
     security_scan: str
     file_tree: dict
+    cached: bool = False
 
 
 class ChatRequest(BaseModel):
@@ -95,13 +101,45 @@ class OnboardingResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+def _normalize_repo_url(url: str) -> str:
+    url = url.rstrip("/")
+    if url.endswith(".git"):
+        url = url[:-4]
+    return url.lower()
+
+
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze_repository(request: AnalyzeRequest):
     repo_url = str(request.repo_url)
+    cache_key = _normalize_repo_url(repo_url)
     repo_path: Optional[str] = None
+
+    if cache_key in analysis_cache:
+        cached = analysis_cache[cache_key]
+        session_id = uuid.uuid4().hex[:12]
+        build_vector_store(session_id, cached["code_chunks"])
+        sessions[session_id] = {
+            "repo_url": repo_url,
+            "file_tree": cached["file_tree"],
+            "dependencies": cached["dependencies"],
+            "code_chunks": cached["code_chunks"],
+        }
+        return AnalyzeResponse(
+            session_id=session_id,
+            file_tree=cached["file_tree"],
+            summary=cached["analysis"]["summary"],
+            architecture=cached["analysis"]["architecture"],
+            dependency_report=cached["analysis"]["dependency_report"],
+            security_scan=cached["analysis"]["security_scan"],
+            cached=True,
+        )
 
     try:
         repo_path = clone_repository(repo_url)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Failed to clone repository: {exc}")
+
+    try:
         file_tree = get_file_tree(repo_path)
         dependencies = parse_dependencies(repo_path)
         code_chunks = get_code_chunks(repo_path)
@@ -117,12 +155,22 @@ async def analyze_repository(request: AnalyzeRequest):
             "code_chunks": code_chunks,
         }
 
+        analysis_cache[cache_key] = {
+            "file_tree": file_tree,
+            "dependencies": dependencies,
+            "code_chunks": code_chunks,
+            "analysis": analysis,
+        }
+
         return AnalyzeResponse(
             session_id=session_id,
             file_tree=file_tree,
             **analysis,
         )
+    except RateLimitError as exc:
+        raise HTTPException(status_code=429, detail=f"LLM rate limit exceeded. Please try again shortly. ({exc})")
     except Exception as exc:
+        logger.exception("Analysis failed for %s", repo_url)
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
         if repo_path:
@@ -131,8 +179,10 @@ async def analyze_repository(request: AnalyzeRequest):
 
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
+    if not request.question.strip():
+        raise HTTPException(status_code=422, detail="Question cannot be empty.")
     if request.session_id not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found. Run /api/analyze first.")
+        raise HTTPException(status_code=404, detail="Session expired or not found. Please re-analyze the repository.")
 
     try:
         relevant = query_vector_store(request.session_id, request.question, n_results=5)
@@ -149,14 +199,17 @@ async def chat(request: ChatRequest):
             answer=answer,
             sources=sources,
         )
+    except RateLimitError as exc:
+        raise HTTPException(status_code=429, detail=f"LLM rate limit exceeded. Please try again shortly. ({exc})")
     except Exception as exc:
+        logger.exception("Chat failed for session %s", request.session_id)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.post("/api/onboarding", response_model=OnboardingResponse)
 async def onboarding(request: OnboardingRequest):
     if request.session_id not in sessions:
-        raise HTTPException(status_code=404, detail="Session not found. Run /api/analyze first.")
+        raise HTTPException(status_code=404, detail="Session expired or not found. Please re-analyze the repository.")
 
     session = sessions[request.session_id]
 
@@ -170,7 +223,10 @@ async def onboarding(request: OnboardingRequest):
             session_id=request.session_id,
             onboarding_guide=guide,
         )
+    except RateLimitError as exc:
+        raise HTTPException(status_code=429, detail=f"LLM rate limit exceeded. Please try again shortly. ({exc})")
     except Exception as exc:
+        logger.exception("Onboarding generation failed for session %s", request.session_id)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

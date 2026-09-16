@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
@@ -258,16 +259,18 @@ def run_full_analysis(
     dependencies: list[dict],
     code_chunks: list[dict],
 ) -> dict:
-    summary = generate_summary(file_tree, dependencies, code_chunks)
-    time.sleep(CALL_SPACING)
-    architecture = generate_architecture(file_tree, code_chunks)
-    time.sleep(CALL_SPACING)
-    dependency_report = generate_dependency_report(dependencies)
-    time.sleep(CALL_SPACING)
-    security_scan = generate_security_scan(code_chunks, dependencies)
-    return {
-        "summary": summary,
-        "architecture": architecture,
-        "dependency_report": dependency_report,
-        "security_scan": security_scan,
+    tasks = {
+        "summary": lambda: generate_summary(file_tree, dependencies, code_chunks),
+        "architecture": lambda: generate_architecture(file_tree, code_chunks),
+        "dependency_report": lambda: generate_dependency_report(dependencies),
+        "security_scan": lambda: generate_security_scan(code_chunks, dependencies),
     }
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future_to_key = {executor.submit(fn): key for key, fn in tasks.items()}
+        for future in as_completed(future_to_key):
+            key = future_to_key[future]
+            results[key] = future.result()
+
+    return results
