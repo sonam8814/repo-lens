@@ -1,12 +1,21 @@
 import os
+import time
+import logging
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
+from groq import RateLimitError
 
 load_dotenv()
 
-GROQ_MODEL = "qwen/qwen3.8-27b"
+logger = logging.getLogger(__name__)
+
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
+
+MAX_RETRIES = 5
+INITIAL_BACKOFF = 10.0
+CALL_SPACING = 20.0
 
 
 def _get_llm() -> ChatGroq:
@@ -17,8 +26,28 @@ def _get_llm() -> ChatGroq:
         model=GROQ_MODEL,
         api_key=api_key,
         temperature=0.2,
-        max_tokens=950,
+        max_tokens=450,
     )
+
+
+def _parse_retry_after(error: RateLimitError) -> float | None:
+    import re
+    match = re.search(r"try again in (\d+\.?\d*)s", str(error))
+    if match:
+        return float(match.group(1))
+    return None
+
+
+def _invoke_with_retry(llm, messages):
+    for attempt in range(MAX_RETRIES):
+        try:
+            return llm.invoke(messages)
+        except RateLimitError as e:
+            if attempt == MAX_RETRIES - 1:
+                raise
+            wait = _parse_retry_after(e) or INITIAL_BACKOFF * (2 ** attempt)
+            logger.warning("Rate limited (attempt %d/%d), retrying in %.1fs", attempt + 1, MAX_RETRIES, wait)
+            time.sleep(wait)
 
 
 def _truncate(text: str, max_chars: int = 12000) -> str:
@@ -68,7 +97,7 @@ def generate_summary(
     deps_str = _truncate(_format_dependencies(dependencies), 3000)
     code_str = _truncate(_format_code_samples(code_chunks), 6000)
 
-    response = llm.invoke([
+    response = _invoke_with_retry(llm, [
         SystemMessage(content=(
             "You are an expert software analyst. Given a repository's file tree, "
             "dependencies, and code samples, provide a concise project summary. "
@@ -92,7 +121,7 @@ def generate_architecture(
     tree_str = _truncate(_format_file_tree(file_tree), 4000)
     code_str = _truncate(_format_code_samples(code_chunks), 8000)
 
-    response = llm.invoke([
+    response = _invoke_with_retry(llm, [
         SystemMessage(content=(
             "You are a senior software architect. Analyze the repository structure "
             "and code to identify architectural patterns. Cover:\n"
@@ -115,7 +144,7 @@ def generate_dependency_report(dependencies: list[dict]) -> str:
     llm = _get_llm()
     deps_str = _format_dependencies(dependencies)
 
-    response = llm.invoke([
+    response = _invoke_with_retry(llm, [
         SystemMessage(content=(
             "You are a dependency analysis expert. Given a project's dependency list, "
             "produce a report covering:\n"
@@ -155,7 +184,7 @@ def generate_security_scan(
     code_str = _truncate(_format_code_samples(code_chunks, max_chunks=40), 10000)
     deps_str = _truncate(_format_dependencies(dependencies), 3000)
 
-    response = llm.invoke([
+    response = _invoke_with_retry(llm, [
         SystemMessage(content=SECURITY_PROMPT),
         HumanMessage(content=(
             f"## Code Samples\n{code_str}\n\n"
@@ -169,7 +198,7 @@ def generate_chat_answer(question: str, context_chunks: list[dict]) -> str:
     llm = _get_llm()
     context_str = _truncate(_format_code_samples(context_chunks), 8000)
 
-    response = llm.invoke([
+    response = _invoke_with_retry(llm, [
         SystemMessage(content=(
             "You are a helpful assistant that answers questions about a codebase. "
             "Use the provided code context to give accurate, specific answers. "
@@ -213,7 +242,7 @@ def generate_onboarding(
     deps_str = _truncate(_format_dependencies(dependencies), 3000)
     code_str = _truncate(_format_code_samples(code_chunks), 6000)
 
-    response = llm.invoke([
+    response = _invoke_with_retry(llm, [
         SystemMessage(content=ONBOARDING_PROMPT),
         HumanMessage(content=(
             f"## File Tree\n{tree_str}\n\n"
@@ -229,9 +258,16 @@ def run_full_analysis(
     dependencies: list[dict],
     code_chunks: list[dict],
 ) -> dict:
+    summary = generate_summary(file_tree, dependencies, code_chunks)
+    time.sleep(CALL_SPACING)
+    architecture = generate_architecture(file_tree, code_chunks)
+    time.sleep(CALL_SPACING)
+    dependency_report = generate_dependency_report(dependencies)
+    time.sleep(CALL_SPACING)
+    security_scan = generate_security_scan(code_chunks, dependencies)
     return {
-        "summary": generate_summary(file_tree, dependencies, code_chunks),
-        "architecture": generate_architecture(file_tree, code_chunks),
-        "dependency_report": generate_dependency_report(dependencies),
-        "security_scan": generate_security_scan(code_chunks, dependencies),
+        "summary": summary,
+        "architecture": architecture,
+        "dependency_report": dependency_report,
+        "security_scan": security_scan,
     }

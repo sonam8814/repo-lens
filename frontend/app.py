@@ -34,16 +34,25 @@ def call_onboarding(session_id: str) -> dict:
     return resp.json()
 
 
-def render_file_tree(node: dict, indent: int = 0) -> str:
+def render_file_tree(node: dict, prefix: str = "", is_last: bool = True, is_root: bool = True) -> str:
     lines = []
-    prefix = "  " * indent
-    if node["type"] == "directory":
-        icon = "📁" if indent > 0 else "📦"
-        lines.append(f"{prefix}{icon} **{node['name']}/**")
-        for child in node.get("children", []):
-            lines.append(render_file_tree(child, indent + 1))
+    if is_root:
+        lines.append(f"{node['name']}/")
     else:
-        lines.append(f"{prefix}📄 {node['name']}")
+        connector = "└── " if is_last else "├── "
+        suffix = "/" if node["type"] == "directory" else ""
+        lines.append(f"{prefix}{connector}{node['name']}{suffix}")
+
+    if node["type"] == "directory":
+        children = node.get("children", [])
+        for i, child in enumerate(children):
+            child_is_last = i == len(children) - 1
+            if is_root:
+                child_prefix = ""
+            else:
+                child_prefix = prefix + ("    " if is_last else "│   ")
+            lines.append(render_file_tree(child, child_prefix, child_is_last, False))
+
     return "\n".join(lines)
 
 
@@ -165,8 +174,8 @@ else:
     # -- File Tree --
     with tab_tree:
         st.header("Repository File Tree")
-        tree_md = render_file_tree(analysis["file_tree"])
-        st.markdown(tree_md)
+        tree_text = render_file_tree(analysis["file_tree"])
+        st.code(tree_text, language=None)
 
     # -- Chat --
     with tab_chat:
@@ -201,6 +210,12 @@ else:
                             "answer": result["answer"],
                             "sources": result.get("sources", []),
                         })
+                    except requests.exceptions.HTTPError as e:
+                        try:
+                            detail = e.response.json().get("detail", str(e))
+                        except Exception:
+                            detail = e.response.text or str(e)
+                        st.error(f"Chat error: {detail}")
                     except Exception as e:
                         st.error(f"Chat error: {e}")
 
@@ -224,5 +239,11 @@ else:
                         result = call_onboarding(st.session_state.session_id)
                         st.session_state.onboarding_guide = result["onboarding_guide"]
                         st.rerun()
+                    except requests.exceptions.HTTPError as e:
+                        try:
+                            detail = e.response.json().get("detail", str(e))
+                        except Exception:
+                            detail = e.response.text or str(e)
+                        st.error(f"Onboarding error: {detail}")
                     except Exception as e:
                         st.error(f"Onboarding error: {e}")
