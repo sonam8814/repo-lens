@@ -14,6 +14,11 @@ LIGHT_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
     }
@@ -116,6 +121,7 @@ LIGHT_CSS = """
         border: 1px solid #e2e8f0;
         height: 100%;
         transition: transform 0.2s, box-shadow 0.2s;
+        animation: fadeInUp 0.5s ease-out both;
     }
     .landing-card:hover {
         transform: translateY(-2px);
@@ -123,6 +129,40 @@ LIGHT_CSS = """
     }
     .landing-card h4 { color: #4f46e5; margin-bottom: 0.5rem; }
     .landing-card p { color: #64748b; font-size: 0.95rem; }
+
+    .how-it-works {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        text-align: center;
+        animation: fadeInUp 0.4s ease-out both;
+    }
+    .how-it-works .step-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        background: #eef2ff;
+        color: #4f46e5;
+        font-weight: 700;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .how-it-works h5 { color: #1e293b; margin: 0.4rem 0 0.2rem; font-size: 0.95rem; }
+    .how-it-works p  { color: #64748b; font-size: 0.82rem; margin: 0; }
+
+    .example-section {
+        text-align: center;
+        animation: fadeInUp 0.6s ease-out both;
+    }
+    .example-section p {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 0.75rem;
+    }
 
     .history-item {
         background: rgba(255,255,255,0.1);
@@ -133,61 +173,46 @@ LIGHT_CSS = """
         transition: background 0.2s;
         border: 1px solid rgba(255,255,255,0.08);
     }
-    .history-item:hover {
-        background: rgba(255,255,255,0.18);
-    }
+    .history-item:hover { background: rgba(255,255,255,0.18); }
     .history-item .repo-name {
-        font-weight: 600;
-        font-size: 0.85rem;
-        color: #ffffff !important;
+        font-weight: 600; font-size: 0.85rem; color: #ffffff !important;
     }
     .history-item .repo-url {
-        font-size: 0.7rem;
-        color: rgba(255,255,255,0.55) !important;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        font-size: 0.7rem; color: rgba(255,255,255,0.55) !important;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
 
     .status-badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        display: inline-block; padding: 2px 8px; border-radius: 12px;
+        font-size: 0.75rem; font-weight: 600;
     }
     .badge-cached { background: #dcfce7; color: #166534; }
-    .badge-fresh { background: #dbeafe; color: #1e40af; }
+    .badge-fresh  { background: #dbeafe; color: #1e40af; }
 
     [data-testid="stMetricValue"] {
-        font-size: 2rem !important;
-        font-weight: 700 !important;
+        font-size: 2rem !important; font-weight: 700 !important;
         color: #4f46e5 !important;
     }
     [data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
-        color: #64748b !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.05em !important;
+        font-size: 0.8rem !important; color: #64748b !important;
+        text-transform: uppercase !important; letter-spacing: 0.05em !important;
     }
 
     .starter-btn button {
-        background: #eef2ff !important;
-        color: #4338ca !important;
-        border: 1px solid #c7d2fe !important;
-        border-radius: 8px !important;
-        font-size: 0.85rem !important;
-        text-align: left !important;
+        background: #eef2ff !important; color: #4338ca !important;
+        border: 1px solid #c7d2fe !important; border-radius: 8px !important;
+        font-size: 0.85rem !important; text-align: left !important;
     }
     .starter-btn button:hover {
-        background: #e0e7ff !important;
-        border-color: #a5b4fc !important;
+        background: #e0e7ff !important; border-color: #a5b4fc !important;
     }
 
-    .chat-timestamp {
-        font-size: 0.7rem;
-        color: #94a3b8;
-        margin-top: 2px;
+    .chat-timestamp { font-size: 0.7rem; color: #94a3b8; margin-top: 2px; }
+
+    .editor-pane textarea {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+        font-size: 0.85rem !important;
+        line-height: 1.5 !important;
     }
 </style>
 """
@@ -195,6 +220,11 @@ LIGHT_CSS = """
 DARK_CSS = """
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(16px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
 
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
@@ -307,6 +337,7 @@ DARK_CSS = """
         border: 1px solid #334155;
         height: 100%;
         transition: transform 0.2s, box-shadow 0.2s;
+        animation: fadeInUp 0.5s ease-out both;
     }
     .landing-card:hover {
         transform: translateY(-2px);
@@ -315,6 +346,38 @@ DARK_CSS = """
     .landing-card h4 { color: #818cf8 !important; margin-bottom: 0.5rem; }
     .landing-card p { color: #94a3b8 !important; font-size: 0.95rem; }
 
+    .how-it-works {
+        background: #1e293b;
+        border-radius: 16px;
+        padding: 1.5rem 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        border: 1px solid #334155;
+        text-align: center;
+        animation: fadeInUp 0.4s ease-out both;
+    }
+    .how-it-works .step-num {
+        display: inline-flex;
+        align-items: center; justify-content: center;
+        width: 32px; height: 32px;
+        border-radius: 50%;
+        background: #312e81;
+        color: #a5b4fc;
+        font-weight: 700; font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .how-it-works h5 { color: #e2e8f0 !important; margin: 0.4rem 0 0.2rem; font-size: 0.95rem; }
+    .how-it-works p  { color: #94a3b8 !important; font-size: 0.82rem; margin: 0; }
+
+    .example-section {
+        text-align: center;
+        animation: fadeInUp 0.6s ease-out both;
+    }
+    .example-section p {
+        color: #64748b !important;
+        font-size: 0.85rem;
+        margin-bottom: 0.75rem;
+    }
+
     .history-item {
         background: rgba(255,255,255,0.04);
         border-radius: 8px;
@@ -322,28 +385,20 @@ DARK_CSS = """
         margin-bottom: 0.4rem;
         border: 1px solid rgba(255,255,255,0.06);
     }
-    .history-item:hover {
-        background: rgba(255,255,255,0.08);
-    }
+    .history-item:hover { background: rgba(255,255,255,0.08); }
     .history-item .repo-name {
-        font-weight: 600;
-        font-size: 0.85rem;
-        color: #e2e8f0 !important;
+        font-weight: 600; font-size: 0.85rem; color: #e2e8f0 !important;
     }
     .history-item .repo-url {
-        font-size: 0.7rem;
-        color: rgba(255,255,255,0.4) !important;
+        font-size: 0.7rem; color: rgba(255,255,255,0.4) !important;
     }
 
     .status-badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        display: inline-block; padding: 2px 8px; border-radius: 12px;
+        font-size: 0.75rem; font-weight: 600;
     }
     .badge-cached { background: #064e3b; color: #6ee7b7; }
-    .badge-fresh { background: #1e3a5f; color: #93c5fd; }
+    .badge-fresh  { background: #1e3a5f; color: #93c5fd; }
 
     [data-testid="stStatusWidget"],
     .stAlert {
@@ -352,34 +407,31 @@ DARK_CSS = """
     }
 
     [data-testid="stMetricValue"] {
-        font-size: 2rem !important;
-        font-weight: 700 !important;
+        font-size: 2rem !important; font-weight: 700 !important;
         color: #818cf8 !important;
     }
     [data-testid="stMetricLabel"] {
-        font-size: 0.8rem !important;
-        color: #94a3b8 !important;
-        text-transform: uppercase !important;
-        letter-spacing: 0.05em !important;
+        font-size: 0.8rem !important; color: #94a3b8 !important;
+        text-transform: uppercase !important; letter-spacing: 0.05em !important;
     }
 
     .starter-btn button {
-        background: #1e293b !important;
-        color: #a5b4fc !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
-        font-size: 0.85rem !important;
-        text-align: left !important;
+        background: #1e293b !important; color: #a5b4fc !important;
+        border: 1px solid #334155 !important; border-radius: 8px !important;
+        font-size: 0.85rem !important; text-align: left !important;
     }
     .starter-btn button:hover {
-        background: #334155 !important;
-        border-color: #818cf8 !important;
+        background: #334155 !important; border-color: #818cf8 !important;
     }
 
-    .chat-timestamp {
-        font-size: 0.7rem;
-        color: #64748b;
-        margin-top: 2px;
+    .chat-timestamp { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+
+    .editor-pane textarea {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+        font-size: 0.85rem !important;
+        line-height: 1.5 !important;
+        background: #0f172a !important;
+        color: #e2e8f0 !important;
     }
 </style>
 """
@@ -499,6 +551,12 @@ STARTER_QUESTIONS = [
     "What testing framework is used?",
 ]
 
+EXAMPLE_REPOS = [
+    ("pallets/flask", "https://github.com/pallets/flask"),
+    ("tiangolo/fastapi", "https://github.com/tiangolo/fastapi"),
+    ("psf/requests", "https://github.com/psf/requests"),
+]
+
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -528,12 +586,22 @@ if "analysis_history" not in st.session_state:
     st.session_state.analysis_history = []
 if "pending_question" not in st.session_state:
     st.session_state.pending_question = None
+if "show_toast" not in st.session_state:
+    st.session_state.show_toast = None
 
 # ---------------------------------------------------------------------------
 # Inject CSS
 # ---------------------------------------------------------------------------
 
 st.markdown(DARK_CSS if st.session_state.dark_mode else LIGHT_CSS, unsafe_allow_html=True)
+
+# ---------------------------------------------------------------------------
+# Toast notifications (display any pending toast)
+# ---------------------------------------------------------------------------
+
+if st.session_state.show_toast:
+    st.toast(st.session_state.show_toast)
+    st.session_state.show_toast = None
 
 # ---------------------------------------------------------------------------
 # Sidebar
@@ -564,6 +632,7 @@ with st.sidebar:
     repo_url = st.text_input(
         "GitHub Repository URL",
         placeholder="https://github.com/user/repo",
+        key="repo_url_input",
     )
 
     analyze_clicked = st.button("Analyze Repository", type="primary", use_container_width=True)
@@ -591,6 +660,7 @@ with st.sidebar:
                         **clone_result["analysis"],
                     }
                     status.update(label="Loaded from cache!", state="complete", expanded=False)
+                    st.session_state.show_toast = "Analysis loaded from cache!"
                 else:
                     st.write(
                         f"✅ Parsed — "
@@ -613,6 +683,7 @@ with st.sidebar:
                         "security_scan": analysis_result["security_scan"],
                     }
                     status.update(label="Analysis complete!", state="complete", expanded=False)
+                    st.session_state.show_toast = "Analysis complete!"
 
                 st.session_state.session_id = session_id
                 st.session_state.analysis = analysis_data
@@ -653,7 +724,7 @@ with st.sidebar:
                 status.update(label="Error", state="error")
                 st.error(f"Error: {e}")
     elif analyze_clicked and not repo_url:
-        st.warning("Please enter a repository URL.")
+        st.toast("Please enter a repository URL first.")
 
     # -- Analysis History --
     if st.session_state.analysis_history:
@@ -680,6 +751,7 @@ with st.sidebar:
                 st.session_state.chat_history = []
                 st.session_state.onboarding_guide = None
                 st.session_state.pending_question = None
+                st.session_state.show_toast = f"Loaded {entry['repo_name']}"
                 st.rerun()
 
     if st.session_state.session_id:
@@ -698,18 +770,51 @@ with st.sidebar:
 if st.session_state.analysis is None:
     st.markdown(
         "<h1 style='text-align:center; margin-top:2rem;'>\U0001f52d RepoLens</h1>"
-        "<p style='text-align:center; font-size:1.1rem; opacity:0.7; margin-bottom:2.5rem;'>"
-        "Enter a public GitHub repository URL in the sidebar to get started.</p>",
+        "<p style='text-align:center; font-size:1.1rem; opacity:0.7; margin-bottom:2rem;'>"
+        "Understand any GitHub repository in minutes, not hours.</p>",
         unsafe_allow_html=True,
     )
 
+    # -- How it works --
+    hw1, hw2, hw3 = st.columns(3)
+    with hw1:
+        st.markdown(
+            "<div class='how-it-works'>"
+            "<div class='step-num'>1</div>"
+            "<h5>\U0001f4cb Paste a URL</h5>"
+            "<p>Enter any public GitHub repo URL in the sidebar</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with hw2:
+        st.markdown(
+            "<div class='how-it-works'>"
+            "<div class='step-num'>2</div>"
+            "<h5>\U0001f916 AI Analyzes</h5>"
+            "<p>Code is parsed, indexed, and analyzed by AI</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with hw3:
+        st.markdown(
+            "<div class='how-it-works'>"
+            "<div class='step-num'>3</div>"
+            "<h5>\U0001f4ac Explore & Ask</h5>"
+            "<p>Browse insights, ask questions, generate docs</p>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # -- Feature cards --
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(
             "<div class='landing-card'>"
             "<h4>\U0001f4ca Codebase Analysis</h4>"
-            "<p>Project summary, architecture overview, and dependency report "
-            "powered by AI.</p></div>",
+            "<p>Project summary, architecture overview, dependency report, "
+            "and security scan — all powered by AI.</p></div>",
             unsafe_allow_html=True,
         )
     with col2:
@@ -717,17 +822,32 @@ if st.session_state.analysis is None:
             "<div class='landing-card'>"
             "<h4>\U0001f4ac Interactive Q&A</h4>"
             "<p>Ask questions about the codebase and get AI-powered answers "
-            "with source citations.</p></div>",
+            "with source citations grounded in actual code.</p></div>",
             unsafe_allow_html=True,
         )
     with col3:
         st.markdown(
             "<div class='landing-card'>"
             "<h4>\U0001f4cb Onboarding Guide</h4>"
-            "<p>Auto-generated developer onboarding documentation ready to "
-            "download and share.</p></div>",
+            "<p>Auto-generated developer onboarding documentation with "
+            "live editing and markdown download.</p></div>",
             unsafe_allow_html=True,
         )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # -- Example repos --
+    st.markdown(
+        "<div class='example-section'><p>Try with a popular open-source project:</p></div>",
+        unsafe_allow_html=True,
+    )
+    ex_cols = st.columns(len(EXAMPLE_REPOS))
+    for i, (name, url) in enumerate(EXAMPLE_REPOS):
+        with ex_cols[i]:
+            if st.button(f"\U0001f4e6 {name}", key=f"example_{i}", use_container_width=True):
+                st.session_state.repo_url_input = url
+                st.rerun()
+
 else:
     analysis = st.session_state.analysis
     stats = analysis.get("stats", {})
@@ -852,6 +972,7 @@ else:
             if st.session_state.chat_history:
                 if st.button("Clear Chat", key="clear_chat", use_container_width=True):
                     st.session_state.chat_history = []
+                    st.session_state.show_toast = "Chat cleared"
                     st.rerun()
 
         # Starter questions when chat is empty
@@ -925,13 +1046,33 @@ else:
         st.header("Developer Onboarding Guide")
 
         if st.session_state.onboarding_guide:
-            st.markdown(st.session_state.onboarding_guide)
-            st.download_button(
-                "Download as Markdown",
-                data=st.session_state.onboarding_guide,
-                file_name="ONBOARDING.md",
-                mime="text/markdown",
-            )
+            col_edit, col_preview = st.columns(2)
+            with col_edit:
+                st.subheader("Edit Source")
+                st.markdown("<div class='editor-pane'>", unsafe_allow_html=True)
+                edited_guide = st.text_area(
+                    "Markdown source",
+                    value=st.session_state.onboarding_guide,
+                    height=500,
+                    label_visibility="collapsed",
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
+            with col_preview:
+                st.subheader("Preview")
+                st.markdown(edited_guide)
+
+            dl_col, reset_col, _ = st.columns([2, 2, 6])
+            with dl_col:
+                st.download_button(
+                    "Download as Markdown",
+                    data=edited_guide,
+                    file_name="ONBOARDING.md",
+                    mime="text/markdown",
+                )
+            with reset_col:
+                if edited_guide != st.session_state.onboarding_guide:
+                    if st.button("Reset Edits"):
+                        st.rerun()
         else:
             st.markdown("Generate a comprehensive onboarding guide for new developers joining this project.")
             if st.button("Generate Onboarding Guide", type="primary"):
@@ -939,6 +1080,7 @@ else:
                     try:
                         result = call_onboarding(st.session_state.session_id)
                         st.session_state.onboarding_guide = result["onboarding_guide"]
+                        st.session_state.show_toast = "Onboarding guide generated!"
                         st.rerun()
                     except requests.exceptions.HTTPError as e:
                         if e.response.status_code == 404:
