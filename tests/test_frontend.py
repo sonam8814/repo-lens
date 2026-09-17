@@ -1,7 +1,10 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from frontend.app import call_clone, call_run_analysis, call_chat, call_onboarding, render_file_tree, _extract_repo_name
+from frontend.app import (
+    call_clone, call_run_analysis, call_chat, call_onboarding,
+    render_file_tree, _extract_repo_name, _filter_tree, _count_security_issues,
+)
 
 
 MOCK_TREE = {
@@ -54,6 +57,50 @@ class TestExtractRepoName(unittest.TestCase):
 
     def test_git_suffix(self):
         self.assertEqual(_extract_repo_name("https://github.com/user/my-repo.git"), "my-repo")
+
+
+class TestFilterTree(unittest.TestCase):
+    def test_filter_matches_file(self):
+        result = _filter_tree(MOCK_TREE, "main")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["name"], "repo")
+        self.assertEqual(len(result["children"]), 1)
+        self.assertEqual(result["children"][0]["name"], "src")
+
+    def test_filter_no_match(self):
+        result = _filter_tree(MOCK_TREE, "nonexistent_xyz")
+        self.assertIsNone(result)
+
+    def test_filter_matches_directory(self):
+        result = _filter_tree(MOCK_TREE, "src")
+        self.assertIsNotNone(result)
+
+    def test_filter_case_insensitive(self):
+        result = _filter_tree(MOCK_TREE, "README")
+        self.assertIsNotNone(result)
+        found_readme = any(
+            c["name"] == "README.md"
+            for c in result.get("children", [])
+        )
+        self.assertTrue(found_readme)
+
+
+class TestCountSecurityIssues(unittest.TestCase):
+    def test_counts_severities(self):
+        text = "HIGH: issue1\nMEDIUM: issue2\nHIGH: issue3\nLOW: issue4"
+        counts = _count_security_issues(text)
+        self.assertEqual(counts["high"], 2)
+        self.assertEqual(counts["medium"], 1)
+        self.assertEqual(counts["low"], 1)
+        self.assertEqual(counts["total"], 4)
+
+    def test_empty_text(self):
+        counts = _count_security_issues("")
+        self.assertEqual(counts["total"], 0)
+
+    def test_no_issues(self):
+        counts = _count_security_issues("No security issues found in this codebase.")
+        self.assertEqual(counts["total"], 0)
 
 
 class TestCallClone(unittest.TestCase):

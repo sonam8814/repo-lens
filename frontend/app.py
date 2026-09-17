@@ -1,5 +1,7 @@
+import re
 import streamlit as st
 import requests
+from datetime import datetime
 
 API_BASE = "http://localhost:8000"
 
@@ -156,6 +158,37 @@ LIGHT_CSS = """
     }
     .badge-cached { background: #dcfce7; color: #166534; }
     .badge-fresh { background: #dbeafe; color: #1e40af; }
+
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: #4f46e5 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.8rem !important;
+        color: #64748b !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+
+    .starter-btn button {
+        background: #eef2ff !important;
+        color: #4338ca !important;
+        border: 1px solid #c7d2fe !important;
+        border-radius: 8px !important;
+        font-size: 0.85rem !important;
+        text-align: left !important;
+    }
+    .starter-btn button:hover {
+        background: #e0e7ff !important;
+        border-color: #a5b4fc !important;
+    }
+
+    .chat-timestamp {
+        font-size: 0.7rem;
+        color: #94a3b8;
+        margin-top: 2px;
+    }
 </style>
 """
 
@@ -317,6 +350,37 @@ DARK_CSS = """
         background: #1e293b !important;
         border-color: #334155 !important;
     }
+
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 700 !important;
+        color: #818cf8 !important;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.8rem !important;
+        color: #94a3b8 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+
+    .starter-btn button {
+        background: #1e293b !important;
+        color: #a5b4fc !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+        font-size: 0.85rem !important;
+        text-align: left !important;
+    }
+    .starter-btn button:hover {
+        background: #334155 !important;
+        border-color: #818cf8 !important;
+    }
+
+    .chat-timestamp {
+        font-size: 0.7rem;
+        color: #64748b;
+        margin-top: 2px;
+    }
 </style>
 """
 
@@ -365,6 +429,10 @@ def call_onboarding(session_id: str) -> dict:
     return resp.json()
 
 
+# ---------------------------------------------------------------------------
+# Tree / utility helpers
+# ---------------------------------------------------------------------------
+
 def render_file_tree(node: dict, prefix: str = "", is_last: bool = True, is_root: bool = True) -> str:
     lines = []
     if is_root:
@@ -394,6 +462,44 @@ def _extract_repo_name(url: str) -> str:
     return url.split("/")[-1] if "/" in url else url
 
 
+def _filter_tree(node: dict, search: str) -> dict | None:
+    search_lower = search.lower()
+
+    if node["type"] == "file":
+        if search_lower in node["name"].lower():
+            return node
+        return None
+
+    filtered_children = []
+    for child in node.get("children", []):
+        result = _filter_tree(child, search)
+        if result is not None:
+            filtered_children.append(result)
+
+    if filtered_children or search_lower in node["name"].lower():
+        return {
+            "name": node["name"],
+            "type": "directory",
+            "children": filtered_children,
+        }
+    return None
+
+
+def _count_security_issues(scan_text: str) -> dict:
+    high = len(re.findall(r'\bHIGH\b', scan_text))
+    medium = len(re.findall(r'\bMEDIUM\b', scan_text))
+    low = len(re.findall(r'\bLOW\b', scan_text))
+    return {"high": high, "medium": medium, "low": low, "total": high + medium + low}
+
+
+STARTER_QUESTIONS = [
+    "What does this project do?",
+    "What are the main entry points?",
+    "How is the project structured?",
+    "What testing framework is used?",
+]
+
+
 # ---------------------------------------------------------------------------
 # Page config
 # ---------------------------------------------------------------------------
@@ -420,6 +526,8 @@ if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = False
 if "analysis_history" not in st.session_state:
     st.session_state.analysis_history = []
+if "pending_question" not in st.session_state:
+    st.session_state.pending_question = None
 
 # ---------------------------------------------------------------------------
 # Inject CSS
@@ -466,9 +574,9 @@ with st.sidebar:
                 st.write("\U0001f4e6 Cloning & parsing repository...")
                 clone_result = call_clone(repo_url)
                 session_id = clone_result["session_id"]
+                stats = clone_result["stats"]
 
                 if clone_result.get("cached") and clone_result.get("analysis"):
-                    stats = clone_result["stats"]
                     st.write(
                         f"✅ Loaded from cache — "
                         f"**{stats['files']}** files, "
@@ -478,12 +586,12 @@ with st.sidebar:
                     analysis_data = {
                         "session_id": session_id,
                         "file_tree": clone_result["file_tree"],
+                        "stats": stats,
                         "cached": True,
                         **clone_result["analysis"],
                     }
                     status.update(label="Loaded from cache!", state="complete", expanded=False)
                 else:
-                    stats = clone_result["stats"]
                     st.write(
                         f"✅ Parsed — "
                         f"**{stats['files']}** files, "
@@ -497,6 +605,7 @@ with st.sidebar:
                     analysis_data = {
                         "session_id": session_id,
                         "file_tree": clone_result["file_tree"],
+                        "stats": stats,
                         "cached": False,
                         "summary": analysis_result["summary"],
                         "architecture": analysis_result["architecture"],
@@ -509,6 +618,7 @@ with st.sidebar:
                 st.session_state.analysis = analysis_data
                 st.session_state.chat_history = []
                 st.session_state.onboarding_guide = None
+                st.session_state.pending_question = None
 
                 repo_name = _extract_repo_name(repo_url)
                 existing = [h for h in st.session_state.analysis_history if h["repo_url"] == repo_url]
@@ -569,6 +679,7 @@ with st.sidebar:
                 st.session_state.analysis = entry["analysis"]
                 st.session_state.chat_history = []
                 st.session_state.onboarding_guide = None
+                st.session_state.pending_question = None
                 st.rerun()
 
     if st.session_state.session_id:
@@ -619,50 +730,151 @@ if st.session_state.analysis is None:
         )
 else:
     analysis = st.session_state.analysis
+    stats = analysis.get("stats", {})
+    sec_counts = _count_security_issues(analysis.get("security_scan", ""))
 
-    tab_summary, tab_arch, tab_deps, tab_security, tab_tree, tab_chat, tab_onboard = st.tabs([
+    # -- Tab labels with badges --
+    file_count = stats.get("files", 0)
+    dep_count = stats.get("dependencies", 0)
+    sec_total = sec_counts["total"]
+    chat_count = len(st.session_state.chat_history)
+
+    tab_labels = [
         "\U0001f4ca Summary",
         "\U0001f3d7️ Architecture",
-        "\U0001f4e6 Dependencies",
-        "\U0001f512 Security",
-        "\U0001f5c2️ File Tree",
-        "\U0001f4ac Chat",
+        f"\U0001f4e6 Dependencies ({dep_count})" if dep_count else "\U0001f4e6 Dependencies",
+        f"\U0001f512 Security ({sec_total})" if sec_total else "\U0001f512 Security",
+        f"\U0001f5c2️ Files ({file_count})" if file_count else "\U0001f5c2️ File Tree",
+        f"\U0001f4ac Chat ({chat_count})" if chat_count else "\U0001f4ac Chat",
         "\U0001f4cb Onboarding",
-    ])
+    ]
+
+    tab_summary, tab_arch, tab_deps, tab_security, tab_tree, tab_chat, tab_onboard = st.tabs(tab_labels)
 
     # -- Summary --
     with tab_summary:
         st.header("Project Summary")
+
+        mc1, mc2, mc3, mc4 = st.columns(4)
+        with mc1:
+            st.metric("Files Analyzed", stats.get("files", "—"))
+        with mc2:
+            st.metric("Code Sections", stats.get("chunks", "—"))
+        with mc3:
+            st.metric("Dependencies", stats.get("dependencies", "—"))
+        with mc4:
+            st.metric("Security Issues", sec_total)
+
+        st.divider()
         st.markdown(analysis["summary"])
+        st.download_button(
+            "\U0001f4cb Download Summary",
+            data=analysis["summary"],
+            file_name="summary.md",
+            mime="text/markdown",
+            key="dl_summary",
+        )
 
     # -- Architecture --
     with tab_arch:
         st.header("Architecture Overview")
         st.markdown(analysis["architecture"])
+        st.download_button(
+            "\U0001f4cb Download Architecture Report",
+            data=analysis["architecture"],
+            file_name="architecture.md",
+            mime="text/markdown",
+            key="dl_arch",
+        )
 
     # -- Dependencies --
     with tab_deps:
         st.header("Dependency Report")
         st.markdown(analysis["dependency_report"])
+        st.download_button(
+            "\U0001f4cb Download Dependency Report",
+            data=analysis["dependency_report"],
+            file_name="dependencies.md",
+            mime="text/markdown",
+            key="dl_deps",
+        )
 
     # -- Security --
     with tab_security:
         st.header("Security Scan")
+
+        if sec_total > 0:
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                st.metric("HIGH", sec_counts["high"])
+            with sc2:
+                st.metric("MEDIUM", sec_counts["medium"])
+            with sc3:
+                st.metric("LOW", sec_counts["low"])
+            st.divider()
+
         st.markdown(analysis["security_scan"])
+        st.download_button(
+            "\U0001f4cb Download Security Report",
+            data=analysis["security_scan"],
+            file_name="security_scan.md",
+            mime="text/markdown",
+            key="dl_security",
+        )
 
     # -- File Tree --
     with tab_tree:
         st.header("Repository File Tree")
-        tree_text = render_file_tree(analysis["file_tree"])
-        st.code(tree_text, language=None)
+
+        search_term = st.text_input(
+            "Search files",
+            placeholder="Filter by file or folder name...",
+            key="tree_search",
+        )
+
+        if search_term:
+            filtered = _filter_tree(analysis["file_tree"], search_term)
+            if filtered:
+                tree_text = render_file_tree(filtered)
+                st.code(tree_text, language=None)
+            else:
+                st.info(f'No files or folders matching "{search_term}".')
+        else:
+            tree_text = render_file_tree(analysis["file_tree"])
+            st.code(tree_text, language=None)
 
     # -- Chat --
     with tab_chat:
-        st.header("Repository Q&A")
+        col_chat_title, col_chat_clear = st.columns([8, 2])
+        with col_chat_title:
+            st.header("Repository Q&A")
+        with col_chat_clear:
+            if st.session_state.chat_history:
+                if st.button("Clear Chat", key="clear_chat", use_container_width=True):
+                    st.session_state.chat_history = []
+                    st.rerun()
+
+        # Starter questions when chat is empty
+        if not st.session_state.chat_history and not st.session_state.pending_question:
+            st.markdown("**Suggested questions to get started:**")
+            sq1, sq2 = st.columns(2)
+            for i, q in enumerate(STARTER_QUESTIONS):
+                with (sq1 if i % 2 == 0 else sq2):
+                    st.markdown("<div class='starter-btn'>", unsafe_allow_html=True)
+                    if st.button(q, key=f"starter_{i}", use_container_width=True):
+                        st.session_state.pending_question = q
+                        st.rerun()
+                    st.markdown("</div>", unsafe_allow_html=True)
+            st.divider()
 
         for entry in st.session_state.chat_history:
             with st.chat_message("user"):
                 st.markdown(entry["question"])
+                if entry.get("timestamp"):
+                    st.markdown(
+                        f"<div class='chat-timestamp'>{entry['timestamp']}</div>",
+                        unsafe_allow_html=True,
+                    )
             with st.chat_message("assistant"):
                 st.markdown(entry["answer"])
                 if entry.get("sources"):
@@ -671,6 +883,10 @@ else:
                             st.markdown(f"- `{src['file']}` (distance: {src['distance']:.4f})")
 
         question = st.chat_input("Ask a question about the codebase...")
+
+        if st.session_state.pending_question:
+            question = st.session_state.pending_question
+            st.session_state.pending_question = None
 
         if question:
             with st.chat_message("user"):
@@ -688,6 +904,7 @@ else:
                             "question": question,
                             "answer": result["answer"],
                             "sources": result.get("sources", []),
+                            "timestamp": datetime.now().strftime("%I:%M %p"),
                         })
                     except requests.exceptions.HTTPError as e:
                         if e.response.status_code == 404:
