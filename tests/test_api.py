@@ -164,6 +164,96 @@ class TestOnboardingEndpoint(unittest.TestCase):
         )
 
 
+class TestCloneEndpoint(unittest.TestCase):
+    def setUp(self):
+        sessions.clear()
+        analysis_cache.clear()
+
+    @patch("backend.api.main.cleanup_repository")
+    @patch("backend.api.main.build_vector_store", return_value="repolens_abc")
+    @patch("backend.api.main.get_code_chunks", return_value=MOCK_CHUNKS)
+    @patch("backend.api.main.parse_dependencies", return_value=MOCK_DEPS)
+    @patch("backend.api.main.get_file_tree", return_value=MOCK_FILE_TREE)
+    @patch("backend.api.main.clone_repository", return_value="/tmp/fake_repo")
+    def test_clone_success(self, mock_clone, mock_tree, mock_deps,
+                           mock_chunks, mock_vs, mock_cleanup):
+        response = client.post(
+            "/api/clone",
+            json={"repo_url": "https://github.com/user/repo"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn("session_id", data)
+        self.assertIn("stats", data)
+        self.assertEqual(data["stats"]["files"], 1)
+        self.assertEqual(data["stats"]["chunks"], 1)
+        self.assertEqual(data["stats"]["dependencies"], 1)
+        self.assertFalse(data["cached"])
+        self.assertIsNone(data["analysis"])
+        mock_clone.assert_called_once()
+        mock_cleanup.assert_called_once_with("/tmp/fake_repo")
+
+    @patch("backend.api.main.clone_repository", side_effect=Exception("clone failed"))
+    def test_clone_failure(self, mock_clone):
+        response = client.post(
+            "/api/clone",
+            json={"repo_url": "https://github.com/user/repo"},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("clone failed", response.json()["detail"])
+
+    @patch("backend.api.main.build_vector_store")
+    def test_clone_cached(self, mock_vs):
+        analysis_cache["https://github.com/user/repo"] = {
+            "file_tree": MOCK_FILE_TREE,
+            "dependencies": MOCK_DEPS,
+            "code_chunks": MOCK_CHUNKS,
+            "analysis": MOCK_ANALYSIS,
+        }
+        response = client.post(
+            "/api/clone",
+            json={"repo_url": "https://github.com/user/repo"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["cached"])
+        self.assertIsNotNone(data["analysis"])
+        self.assertEqual(data["analysis"]["summary"], "A test project.")
+
+
+class TestRunAnalysisEndpoint(unittest.TestCase):
+    def setUp(self):
+        sessions.clear()
+        analysis_cache.clear()
+        sessions["test-session"] = {
+            "repo_url": "https://github.com/user/repo",
+            "file_tree": MOCK_FILE_TREE,
+            "dependencies": MOCK_DEPS,
+            "code_chunks": MOCK_CHUNKS,
+            "cache_key": "https://github.com/user/repo",
+        }
+
+    @patch("backend.api.main.run_full_analysis", return_value=MOCK_ANALYSIS)
+    def test_run_analysis_success(self, mock_analysis):
+        response = client.post(
+            "/api/run-analysis",
+            json={"session_id": "test-session"},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["summary"], "A test project.")
+        self.assertEqual(data["architecture"], "Simple monolith.")
+        self.assertEqual(data["session_id"], "test-session")
+        self.assertIn("https://github.com/user/repo", analysis_cache)
+
+    def test_run_analysis_session_not_found(self):
+        response = client.post(
+            "/api/run-analysis",
+            json={"session_id": "nonexistent"},
+        )
+        self.assertEqual(response.status_code, 404)
+
+
 class TestAnalyzerNewFunctions(unittest.TestCase):
     @patch("backend.core.analyzer._get_llm")
     def test_generate_chat_answer(self, mock_llm_fn):

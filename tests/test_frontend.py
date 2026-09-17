@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from frontend.app import call_analyze, call_chat, call_onboarding, render_file_tree
+from frontend.app import call_clone, call_run_analysis, call_chat, call_onboarding, render_file_tree, _extract_repo_name
 
 
 MOCK_TREE = {
@@ -45,7 +45,47 @@ class TestRenderFileTree(unittest.TestCase):
         self.assertIn("empty", result)
 
 
-class TestCallAnalyze(unittest.TestCase):
+class TestExtractRepoName(unittest.TestCase):
+    def test_basic_url(self):
+        self.assertEqual(_extract_repo_name("https://github.com/user/my-repo"), "my-repo")
+
+    def test_trailing_slash(self):
+        self.assertEqual(_extract_repo_name("https://github.com/user/my-repo/"), "my-repo")
+
+    def test_git_suffix(self):
+        self.assertEqual(_extract_repo_name("https://github.com/user/my-repo.git"), "my-repo")
+
+
+class TestCallClone(unittest.TestCase):
+    @patch("frontend.app.requests.post")
+    def test_success(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "session_id": "abc123",
+            "file_tree": MOCK_TREE,
+            "stats": {"files": 2, "chunks": 1, "dependencies": 1},
+            "cached": False,
+        }
+        mock_resp.raise_for_status = MagicMock()
+        mock_post.return_value = mock_resp
+
+        result = call_clone("https://github.com/user/repo")
+        self.assertEqual(result["session_id"], "abc123")
+        self.assertFalse(result["cached"])
+        args, kwargs = mock_post.call_args
+        self.assertIn("/api/clone", args[0])
+
+    @patch("frontend.app.requests.post")
+    def test_http_error(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = Exception("500 Server Error")
+        mock_post.return_value = mock_resp
+
+        with self.assertRaises(Exception):
+            call_clone("https://github.com/user/repo")
+
+
+class TestCallRunAnalysis(unittest.TestCase):
     @patch("frontend.app.requests.post")
     def test_success(self, mock_post):
         mock_resp = MagicMock()
@@ -55,26 +95,15 @@ class TestCallAnalyze(unittest.TestCase):
             "architecture": "Monolith.",
             "dependency_report": "Uses Flask.",
             "security_scan": "Clean.",
-            "file_tree": MOCK_TREE,
         }
         mock_resp.raise_for_status = MagicMock()
         mock_post.return_value = mock_resp
 
-        result = call_analyze("https://github.com/user/repo")
-        self.assertEqual(result["session_id"], "abc123")
-        mock_post.assert_called_once()
+        result = call_run_analysis("abc123")
+        self.assertEqual(result["summary"], "A project.")
         args, kwargs = mock_post.call_args
-        self.assertIn("/api/analyze", args[0])
-        self.assertEqual(kwargs["json"]["repo_url"], "https://github.com/user/repo")
-
-    @patch("frontend.app.requests.post")
-    def test_http_error(self, mock_post):
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status.side_effect = Exception("500 Server Error")
-        mock_post.return_value = mock_resp
-
-        with self.assertRaises(Exception):
-            call_analyze("https://github.com/user/repo")
+        self.assertIn("/api/run-analysis", args[0])
+        self.assertEqual(kwargs["json"]["session_id"], "abc123")
 
 
 class TestCallChat(unittest.TestCase):

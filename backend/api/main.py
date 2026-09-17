@@ -97,9 +97,35 @@ class OnboardingResponse(BaseModel):
     onboarding_guide: str
 
 
+class CloneResponse(BaseModel):
+    session_id: str
+    file_tree: dict
+    stats: dict
+    cached: bool = False
+    analysis: Optional[dict] = None
+
+
+class RunAnalysisRequest(BaseModel):
+    session_id: str
+
+
+class RunAnalysisResponse(BaseModel):
+    session_id: str
+    summary: str
+    architecture: str
+    dependency_report: str
+    security_scan: str
+
+
 # ---------------------------------------------------------------------------
-# Endpoints
+# Helpers
 # ---------------------------------------------------------------------------
+
+def _count_files(tree: dict) -> int:
+    if tree["type"] == "file":
+        return 1
+    return sum(_count_files(c) for c in tree.get("children", []))
+
 
 def _normalize_repo_url(url: str) -> str:
     url = url.rstrip("/")
@@ -227,6 +253,108 @@ async def onboarding(request: OnboardingRequest):
         raise HTTPException(status_code=429, detail=f"LLM rate limit exceeded. Please try again shortly. ({exc})")
     except Exception as exc:
         logger.exception("Onboarding generation failed for session %s", request.session_id)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/api/clone", response_model=CloneResponse)
+async def clone_and_parse(request: AnalyzeRequest):
+    repo_url = str(request.repo_url)
+    cache_key = _normalize_repo_url(repo_url)
+    repo_path: Optional[str] = None
+
+    if cache_key in analysis_cache:
+        cached = analysis_cache[cache_key]
+        session_id = uuid.uuid4().hex[:12]
+        build_vector_store(session_id, cached["code_chunks"])
+        sessions[session_id] = {
+            "repo_url": repo_url,
+            "file_tree": cached["file_tree"],
+            "dependencies": cached["dependencies"],
+            "code_chunks": cached["code_chunks"],
+            "cache_key": cache_key,
+        }
+        return CloneResponse(
+            session_id=session_id,
+            file_tree=cached["file_tree"],
+            stats={
+                "files": _count_files(cached["file_tree"]),
+                "chunks": len(cached["code_chunks"]),
+                "dependencies": sum(len(d["dependencies"]) for d in cached["dependencies"]),
+            },
+            cached=True,
+            analysis=cached["analysis"],
+        )
+
+    try:
+        repo_path = clone_repository(repo_url)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Failed to clone repository: {exc}")
+
+    try:
+        file_tree = get_file_tree(repo_path)
+        dependencies = parse_dependencies(repo_path)
+        code_chunks = get_code_chunks(repo_path)
+
+        session_id = uuid.uuid4().hex[:12]
+        build_vector_store(session_id, code_chunks)
+
+        sessions[session_id] = {
+            "repo_url": repo_url,
+            "file_tree": file_tree,
+            "dependencies": dependencies,
+            "code_chunks": code_chunks,
+            "cache_key": cache_key,
+        }
+
+        return CloneResponse(
+            session_id=session_id,
+            file_tree=file_tree,
+            stats={
+                "files": _count_files(file_tree),
+                "chunks": len(code_chunks),
+                "dependencies": sum(len(d["dependencies"]) for d in dependencies),
+            },
+            cached=False,
+        )
+    except Exception as exc:
+        logger.exception("Clone/parse failed for %s", repo_url)
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        if repo_path:
+            cleanup_repository(repo_path)
+
+
+@app.post("/api/run-analysis", response_model=RunAnalysisResponse)
+async def run_analysis_endpoint(request: RunAnalysisRequest):
+    if request.session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found. Please clone the repository first.")
+
+    session = sessions[request.session_id]
+
+    try:
+        analysis = run_full_analysis(
+            session["file_tree"],
+            session["dependencies"],
+            session["code_chunks"],
+        )
+
+        cache_key = session.get("cache_key")
+        if cache_key:
+            analysis_cache[cache_key] = {
+                "file_tree": session["file_tree"],
+                "dependencies": session["dependencies"],
+                "code_chunks": session["code_chunks"],
+                "analysis": analysis,
+            }
+
+        return RunAnalysisResponse(
+            session_id=request.session_id,
+            **analysis,
+        )
+    except RateLimitError as exc:
+        raise HTTPException(status_code=429, detail=f"LLM rate limit exceeded. Please try again shortly. ({exc})")
+    except Exception as exc:
+        logger.exception("Analysis failed for session %s", request.session_id)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
