@@ -110,8 +110,17 @@ LIGHT_CSS = """
         background: #ffffff;
     }
 
-    h1 { color: #1e293b; font-weight: 700; }
-    h2, h3 { color: #334155; font-weight: 600; }
+    .stApp, .stMarkdown, .stMarkdown p, .stMarkdown li, .stMarkdown span,
+    .stMarkdown strong, .stMarkdown em, .stMarkdown td, .stMarkdown th {
+        color: #1e293b !important;
+    }
+    .stCode code, .stCodeBlock {
+        color: #1e293b !important;
+        background: #f1f5f9 !important;
+    }
+
+    h1 { color: #1e293b !important; font-weight: 700; }
+    h2, h3 { color: #334155 !important; font-weight: 600; }
 
     .landing-card {
         background: #ffffff;
@@ -588,6 +597,8 @@ if "pending_question" not in st.session_state:
     st.session_state.pending_question = None
 if "show_toast" not in st.session_state:
     st.session_state.show_toast = None
+if "example_url" not in st.session_state:
+    st.session_state.example_url = None
 
 # ---------------------------------------------------------------------------
 # Inject CSS
@@ -628,6 +639,10 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
+
+    if st.session_state.example_url is not None:
+        st.session_state.repo_url_input = st.session_state.example_url
+        st.session_state.example_url = None
 
     repo_url = st.text_input(
         "GitHub Repository URL",
@@ -845,7 +860,7 @@ if st.session_state.analysis is None:
     for i, (name, url) in enumerate(EXAMPLE_REPOS):
         with ex_cols[i]:
             if st.button(f"\U0001f4e6 {name}", key=f"example_{i}", use_container_width=True):
-                st.session_state.repo_url_input = url
+                st.session_state.example_url = url
                 st.rerun()
 
 else:
